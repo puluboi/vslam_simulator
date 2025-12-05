@@ -1,0 +1,20 @@
+# Dependencies (installed separately)
+libs/raylib/
+
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.dll
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
