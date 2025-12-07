@@ -1,13 +1,20 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.10)
 project(vslam_simulator)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Find raylib using pkg-config
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(RAYLIB REQUIRED raylib)
+# Find ROS 2 packages
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
+# Build raylib only if not already built
+if(NOT TARGET raylib)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
+    add_subdirectory(libs/raylib EXCLUDE_FROM_ALL)
+endif()
 
 # Collect source files
 file(GLOB_RECURSE SOURCES
@@ -22,11 +29,19 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/game
-    ${RAYLIB_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/src/ros
+)
+
+# Link ROS 2 dependencies
+ament_target_dependencies(${PROJECT_NAME}
+    rclcpp
+    sensor_msgs
+    std_msgs
 )
 
 # Link raylib
 target_link_libraries(${PROJECT_NAME}
-    ${RAYLIB_LIBRARIES}
-    GL m pthread dl rt X11
+    raylib
+    m pthread dl rt X11
 )
+

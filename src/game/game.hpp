@@ -3,6 +3,8 @@
 #include "rcamera.h"
 #include <string.h>
 #include "player.hpp"
+#include "../ros/rosPublisher.hpp"
+#include <memory>
 
 struct data{
     Image frame;
@@ -21,10 +23,14 @@ private:
     void update();
     void draw();
     void createWorld();
+    void captureAndPublishFrame();
 
     Player player;
+    std::unique_ptr<RosPublisher> ros_publisher_;
 
     Model map;
+    Texture2D cameraPreview;
+    bool showCameraPreview = false;
     int cameraMode = CAMERA_FIRST_PERSON;
     int screenWidth = 1200;
     int screenHeight = 800;

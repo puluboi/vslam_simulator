@@ -1,6 +1,6 @@
 #include "game.hpp"
 
-Game::Game() : player({0.0f, 2.0f, 2.0f})
+Game::Game() : player({0.0f, 2.0f, 2.0f}), cameraPreview({0})
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "VSLAM Simulator");
@@ -9,10 +9,17 @@ Game::Game() : player({0.0f, 2.0f, 2.0f})
     // DisableCursor();
     SetTargetFPS(60);
     createWorld();
+    
+    // Initialize ROS 2 publisher
+    ros_publisher_ = std::make_unique<RosPublisher>();
 }
 
 Game::~Game()
 {
+    if (cameraPreview.id != 0)
+    {
+        UnloadTexture(cameraPreview);
+    }
     UnloadModel(map); // Free model memory
     CloseWindow();
 }
@@ -57,17 +64,27 @@ void Game::run()
     {
         update();
         draw();
+        ros_publisher_->spin();  // Process ROS callbacks
     }
 }
 
 void Game::update()
 {
     player.update();
+    
+    // Toggle camera preview with P key
+    if (IsKeyPressed(KEY_P))
+    {
+        showCameraPreview = !showCameraPreview;
+        TraceLog(LOG_INFO, "Camera preview %s", showCameraPreview ? "enabled" : "disabled");
+    }
 }
 
 void Game::draw()
 {
     Camera3D camera = player.getCamera();
+    
+    // First render the 3D scene (this is what ROS will capture)
     BeginDrawing();
     ClearBackground(RAYWHITE);
     BeginMode3D(camera);
@@ -82,6 +99,9 @@ void Game::draw()
     }
 
     EndMode3D();
+    
+    // Capture frame for ROS right after 3D rendering, before UI overlay
+    captureAndPublishFrame();
 
     // Draw info boxes
     DrawRectangle(5, 5, 330, 100, Fade(SKYBLUE, 0.5f));
@@ -92,7 +112,7 @@ void Game::draw()
     DrawText("- Look around: arrow keys or mouse", 15, 45, 10, BLACK);
     DrawText("- Camera mode keys: 1, 2, 3, 4", 15, 60, 10, BLACK);
     DrawText("- Zoom keys: num-plus, num-minus or mouse scroll", 15, 75, 10, BLACK);
-    DrawText("- Camera projection key: P", 15, 90, 10, BLACK);
+    DrawText("- Camera preview toggle: P", 15, 90, 10, BLACK);
 
     DrawRectangle(600, 5, 195, 100, Fade(SKYBLUE, 0.5f));
     DrawRectangleLines(600, 5, 195, 100, BLUE);
@@ -116,5 +136,45 @@ void Game::draw()
     DrawText(TextFormat("- Accel: (%.1f, %.1f, %.1f)", player.imuLinearAcceleration().x, player.imuLinearAcceleration().y, player.imuLinearAcceleration().z), 610, 120, 10, BLACK);
     DrawText(TextFormat("- Gyro: (%.1f, %.1f, %.1f)", player.imuGyroAcceleration().x*10, player.imuGyroAcceleration().y*10, player.imuGyroAcceleration().z*10), 610, 135, 10, BLACK);
 
+    // Draw camera preview (what ROS will see) if enabled
+    if (showCameraPreview && cameraPreview.id != 0)
+    {
+        int previewWidth = 160;
+        int previewHeight = 90;
+        DrawTexturePro(
+            cameraPreview,
+            (Rectangle){0, 0, (float)cameraPreview.width, (float)cameraPreview.height},
+            (Rectangle){10, screenHeight - previewHeight - 10, (float)previewWidth, (float)previewHeight},
+            (Vector2){0, 0},
+            0.0f,
+            WHITE
+        );
+        DrawRectangleLines(10, screenHeight - previewHeight - 10, previewWidth, previewHeight, RED);
+        DrawText("ROS Camera", 15, screenHeight - previewHeight - 25, 10, RED);
+    }
+
     EndDrawing();
+}
+
+void Game::captureAndPublishFrame()
+{
+    // Capture frame right after 3D rendering (before UI overlay)
+    // This gives us a clean camera view for ROS
+    Image screenshot = LoadImageFromScreen();
+    
+    // Update preview texture if preview is enabled
+    if (showCameraPreview)
+    {
+        if (cameraPreview.id != 0)
+        {
+            UnloadTexture(cameraPreview);
+        }
+        cameraPreview = LoadTextureFromImage(screenshot);
+    }
+    
+    // Publish to ROS 2
+    ros_publisher_->publishImage(screenshot);
+    
+    // Free the screenshot memory
+    UnloadImage(screenshot);
 }

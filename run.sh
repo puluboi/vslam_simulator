@@ -1,9 +1,10 @@
+#!/bin/bash
 
-# Clean
-/usr/bin/cmake --build /home/puluboi/vslam_simulator/out/build/VSLAM_SIMULATOR --target clean
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Build
-/usr/bin/cmake --build /home/puluboi/vslam_simulator/out/build/VSLAM_SIMULATOR
+# Build 
+cmake --build "$SCRIPT_DIR/out/build/VSLAM_SIMULATOR"
 
 # Run
-./out/build/VSLAM_SIMULATOR/vslam_simulator
+"$SCRIPT_DIR/out/build/VSLAM_SIMULATOR/vslam_simulator"

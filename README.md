@@ -17,7 +17,7 @@ sudo apt install build-essential git libasound2-dev libx11-dev libxrandr-dev lib
 ```
 
 2. Clone and build raylib:
-
+cd ~/ros2_kilted && rosdep install --from-paths src --ignore-src -y --skip-keys "fastcdr rti-connext-dds-6.0.1 urdfdom_headers"
 ```bash
 git clone --depth 1 https://github.com/raysan5/raylib.git
 cd raylib/src
