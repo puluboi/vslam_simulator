@@ -40,6 +40,3 @@ TODO: Add build instructions for vslam_simulator
 
 TODO: Add usage instructions
 
-## License
-
-TODO: Add license information

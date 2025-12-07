@@ -2,6 +2,8 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "rcamera.h"
+#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/twist.hpp"
 
 class Player
 {
@@ -11,8 +13,13 @@ public:
     void update();
     const Camera3D getCamera();
     Vector3 imuLinearAcceleration();
-
     Vector3 imuGyroAcceleration();
+    
+    // ROS 2 compatible getters
+    geometry_msgs::msg::Pose getPose() const;
+    geometry_msgs::msg::Twist getTwist() const;
+    Vector3 getPosition() const;
+    Vector3 getVelocity() const;
 
 private:
     void handleInput();

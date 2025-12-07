@@ -78,6 +78,13 @@ void Game::update()
         showCameraPreview = !showCameraPreview;
         TraceLog(LOG_INFO, "Camera preview %s", showCameraPreview ? "enabled" : "disabled");
     }
+    
+    // Publish ground truth pose and twist
+    ros_publisher_->publishPose(player.getPose());
+    ros_publisher_->publishTwist(player.getTwist());
+    
+    // Publish IMU data
+    ros_publisher_->publishIMU(player.imuLinearAcceleration(), player.imuGyroAcceleration());
 }
 
 void Game::draw()

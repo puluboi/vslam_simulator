@@ -66,7 +66,7 @@ void Player::applyPhysics(float dt)
     velocity.y += acceleration.y * dt;
     velocity.z += acceleration.z * dt;
     
-    std::cout<<acceleration.x<<" "<<acceleration.z<< std::endl;
+    //std::cout<<acceleration.x<<" "<<acceleration.z<< std::endl;
   
     
 
@@ -118,3 +118,61 @@ Vector3 Player::imuGyroAcceleration(){
     
     return noisyGyro;
 }
+
+Vector3 Player::getPosition() const {
+    return position;
+}
+
+Vector3 Player::getVelocity() const {
+    return velocity;
+}
+
+geometry_msgs::msg::Pose Player::getPose() const {
+    geometry_msgs::msg::Pose pose;
+    
+    // Convert Raylib coordinates to ROS coordinates
+    // Raylib: X=right, Y=up, Z=forward
+    // ROS:    X=forward, Y=left, Z=up
+    pose.position.x = position.x;   // Raylib Z → ROS X (forward)
+    pose.position.y = -position.z;  // Raylib X → ROS Y (left, negated)
+    pose.position.z = position.y;   // Raylib Y → ROS Z (up)
+    
+    // Convert yaw/pitch to quaternion with ROS coordinate system
+    // In Raylib: yaw rotates around Y axis (up)
+    // In ROS: yaw rotates around Z axis (up)
+    // We need to adjust the quaternion conversion
+    
+    // For ROS: rotation around Z (yaw), then Y (pitch), then X (roll=0)
+    float cy = cos(yaw * 0.5f);
+    float sy = sin(yaw * 0.5f);
+    float cp = cos(pitch * 0.5f);
+    float sp = sin(pitch * 0.5f);
+    
+    // Quaternion for ROS coordinate system (Z-up, yaw around Z)
+    pose.orientation.w = cy * cp;
+    pose.orientation.x = -sy * sp;
+    pose.orientation.y = cy * sp;
+    pose.orientation.z = sy * cp;
+    
+    return pose;
+}
+
+geometry_msgs::msg::Twist Player::getTwist() const {
+    geometry_msgs::msg::Twist twist;
+    
+    // Convert velocity to ROS coordinates
+    // Raylib: X=right, Y=up, Z=forward
+    // ROS:    X=forward, Y=left, Z=up
+    twist.linear.x = velocity.z;   // Raylib Z → ROS X (forward)
+    twist.linear.y = -velocity.x;  // Raylib X → ROS Y (left, negated)
+    twist.linear.z = velocity.y;   // Raylib Y → ROS Z (up)
+    
+    // Convert angular velocity to ROS coordinates
+    // In ROS, yaw rate is around Z axis (up)
+    twist.angular.x = 0.0f;        // roll rate
+    twist.angular.y = 0.0f;        // pitch rate  
+    twist.angular.z = yawVelocity; // yaw rate around Z (up) in ROS
+    
+    return twist;
+}
+
