@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Site BuildName="(empty)"
+	BuildStamp="20251208-0842-Experimental"
+	Name="pulupc"
+	Generator="ctest-3.31.6"
+	CompilerName="/usr/bin/c++"
+	CompilerVersion="14.2.0"
+	OSName="Linux"
+	Hostname="pulupc"
+	OSRelease="6.12.57+deb13-amd64"
+	OSVersion="#1 SMP PREEMPT_DYNAMIC Debian 6.12.57-1 (2025-11-05)"
+	OSPlatform="x86_64"
+	Is64Bits="1"
+	VendorString="AuthenticAMD"
+	VendorID="Advanced Micro Devices"
+	FamilyID="23"
+	ModelID="24"
+	ModelName="AMD Ryzen 5 PRO 3500U w/ Radeon Vega Mobile Gfx"
+	ProcessorCacheSize="512"
+	NumberOfLogicalCPU="8"
+	NumberOfPhysicalCPU="4"
+	TotalVirtualMemory="14212"
+	TotalPhysicalMemory="13860"
+	LogicalProcessorsPerPhysical="2"
+	ProcessorClockFrequency="1836.2"
+	>
+	<Testing>
+		<StartDateTime>Dec 08 15:06 EET</StartDateTime>
+		<StartTestTime>1765199191</StartTestTime>
+		<TestList/>
+		<EndDateTime>Dec 08 15:06 EET</EndDateTime>
+		<EndTestTime>1765199191</EndTestTime>
+		<ElapsedMinutes>0</ElapsedMinutes>
+	</Testing>
+</Site>
