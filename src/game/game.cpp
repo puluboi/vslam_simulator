@@ -179,8 +179,8 @@ void Game::captureAndPublishFrame()
         cameraPreview = LoadTextureFromImage(screenshot);
     }
     
-    // Publish to ROS 2
-    ros_publisher_->publishImage(screenshot);
+    // Publish to ROS 2, passing the player's camera
+    ros_publisher_->publishImage(screenshot, player.getCamera());
     
     // Free the screenshot memory
     UnloadImage(screenshot);

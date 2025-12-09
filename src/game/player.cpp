@@ -140,7 +140,7 @@ geometry_msgs::msg::Pose Player::getPose() const {
     // Convert yaw/pitch to quaternion with ROS coordinate system
     // In Raylib: yaw rotates around Y axis (up)
     // In ROS: yaw rotates around Z axis (up)
-    // We need to adjust the quaternion conversion
+    // We need to adjust the qufaternion conversion
     
     // For ROS: rotation around Z (yaw), then Y (pitch), then X (roll=0)
     float cy = cos(yaw * 0.5f);

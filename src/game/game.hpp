@@ -32,8 +32,8 @@ private:
     Texture2D cameraPreview;
     bool showCameraPreview = false;
     int cameraMode = CAMERA_FIRST_PERSON;
-    int screenWidth = 1200;
-    int screenHeight = 800;
+    int screenWidth = 1920;
+    int screenHeight = 1080;
     static constexpr unsigned int MAX_COLUMNS = 20;
     float heights[MAX_COLUMNS] = {0};
     Vector3 positions[MAX_COLUMNS] = {0};

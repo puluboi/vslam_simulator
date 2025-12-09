@@ -1,6 +1,7 @@
 #include "rosPublisher.hpp"
 #include <chrono>
 #include <stdio.h>
+#include <cmath>
 
 RosPublisher::RosPublisher() : sequence_number_(0) {
     // Initialize ROS 2
@@ -31,15 +32,15 @@ RosPublisher::~RosPublisher() {
     rclcpp::shutdown();
 }
 
-void RosPublisher::publishImage(const Image& frame) {
+void RosPublisher::publishImage(const Image& frame, const Camera3D& camera) {
     // Convert raylib Image to ROS Image message
     auto image_msg = imageToRosMsg(frame);
-    auto camera_info_msg = createCameraInfo();
+    // Pass camera to calculate intrinsics
+    auto camera_info_msg = createCameraInfo(frame, camera);
     
     // Publish both messages
     image_pub_->publish(image_msg);
     camera_info_pub_->publish(camera_info_msg);
-    //td::cout<<"published"<<std::endl;
     sequence_number_++;
 }
 
@@ -84,28 +85,38 @@ sensor_msgs::msg::Image RosPublisher::imageToRosMsg(const Image& frame) {
     return msg;
 }
 
-sensor_msgs::msg::CameraInfo RosPublisher::createCameraInfo() {
+sensor_msgs::msg::CameraInfo RosPublisher::createCameraInfo(const Image& frame, const Camera3D& camera) {
     sensor_msgs::msg::CameraInfo msg;
     
     msg.header.stamp = node_->now();
     msg.header.frame_id = "camera_frame";
     
-    // Camera intrinsics (you should calibrate these for your camera)
-    msg.width = 1200;
-    msg.height = 800;
+    // Set dimensions from the actual frame
+    msg.width = frame.width;
+    msg.height = frame.height;
     msg.distortion_model = "plumb_bob";
     
-    // Placeholder values - replace with actual calibration
+    // No distortion in simulated camera
     msg.d = {0.0, 0.0, 0.0, 0.0, 0.0};
+    
+    // Calculate Focal Length (fx, fy) from FOV
+    // Raylib uses vertical FOV in degrees
+    double fovy_rad = camera.fovy * (M_PI / 180.0);
+    double fy = (msg.height / 2.0) / tan(fovy_rad / 2.0);
+    double fx = fy; // Assume square pixels
+    
+    // Principal point is at the center
+    double cx = msg.width / 2.0;
+    double cy = msg.height / 2.0;
     
     // Camera matrix K
     msg.k = {
-        800.0, 0.0, 600.0,  // fx, 0, cx
-        0.0, 800.0, 400.0,  // 0, fy, cy
+        fx, 0.0, cx,
+        0.0, fy, cy,
         0.0, 0.0, 1.0
     };
     
-    // Rectification matrix R (identity for monocular)
+    // Rectification matrix R (identity)
     msg.r = {
         1.0, 0.0, 0.0,
         0.0, 1.0, 0.0,
@@ -114,8 +125,8 @@ sensor_msgs::msg::CameraInfo RosPublisher::createCameraInfo() {
     
     // Projection matrix P
     msg.p = {
-        800.0, 0.0, 600.0, 0.0,
-        0.0, 800.0, 400.0, 0.0,
+        fx, 0.0, cx, 0.0,
+        0.0, fy, cy, 0.0,
         0.0, 0.0, 1.0, 0.0
     };
     

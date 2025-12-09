@@ -16,7 +16,8 @@ public:
     RosPublisher();
     ~RosPublisher();
 
-    void publishImage(const Image& frame);
+    // Update signature to accept Camera3D
+    void publishImage(const Image& frame, const Camera3D& camera);
     void publishPose(const geometry_msgs::msg::Pose& pose);
     void publishTwist(const geometry_msgs::msg::Twist& twist);
     void publishIMU(const Vector3& linear_accel, const Vector3& angular_vel);
@@ -24,7 +25,8 @@ public:
 
 private:
     sensor_msgs::msg::Image imageToRosMsg(const Image& frame);
-    sensor_msgs::msg::CameraInfo createCameraInfo();
+    // Update signature
+    sensor_msgs::msg::CameraInfo createCameraInfo(const Image& frame, const Camera3D& camera);
 
     rclcpp::Node::SharedPtr node_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
