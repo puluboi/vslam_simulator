@@ -9,18 +9,19 @@ Orb_Basic::Orb_Basic(const int feature_count)
         feature_count,         // nfeatures - more features for robustness
         1.2f,                  // scaleFactor - better scale invariance
         8,                     // nlevels - more pyramid levels
-        31,                    // edgeThreshold - balance detection on edges
+        19,                    // edgeThreshold - balance detection on edges
         0,                     // firstLevel
         2,                     // WTA_K - use 2 for better distinctiveness
         cv::ORB::HARRIS_SCORE, // Use Harris corner score (better than FAST)
         31,                    // patchSize
-        20                     // fastThreshold - lower for more features in low-texture
+        10                     // fastThreshold - lower for more features in low-texture
     );
 
     bf = cv::BFMatcher::create(cv::NORM_HAMMING, false);
-
+    
     consumer_ = std::make_shared<rosConsumer>();
 
+    clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
     // Create window for displaying images
     cv::namedWindow("Latest Image", cv::WINDOW_AUTOSIZE);
 
@@ -72,7 +73,7 @@ Orb_Basic::Orb_Basic(const int feature_count)
                     prev_orientation = curr_orientation;
                     continue;
                 }
-
+                preProcess();
                 auto pts = featureExtraction();
                 Triangulation(pts.first, pts.second);
                 // Publish 3D points to ROS2 in world frame
@@ -137,7 +138,7 @@ std::pair<std::vector<cv::Point2f>, std::vector<cv::Point2f>> Orb_Basic::feature
         }
 
         // Draw tracking trails on current frame
-        cv::Mat tracking_viz = image.clone();
+        const cv::Mat tracking_viz = image.clone();
 
         pts1.reserve(good_matches.size());
         pts2.reserve(good_matches.size());
@@ -166,7 +167,9 @@ std::pair<std::vector<cv::Point2f>, std::vector<cv::Point2f>> Orb_Basic::feature
             cv::circle(tracking_viz, curr_pt, 3, cv::Scalar(0, 0, 255), -1);
         }
 
-         cv::imshow("Feature Tracking", tracking_viz);
+        cv::imshow("Feature Tracking", tracking_viz);
+
+        consumer_->publishTrackingViz(tracking_viz);
     }
 
     // prev_keypoints = curr_keypoints; // Moved to Triangulation
@@ -174,6 +177,14 @@ std::pair<std::vector<cv::Point2f>, std::vector<cv::Point2f>> Orb_Basic::feature
     cv::waitKey(1);
     return std::pair(pts1, pts2);
 }
+
+void Orb_Basic::preProcess()
+{
+    cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
+    clahe->apply(image, image);
+
+}
+
 
 void Orb_Basic::Triangulation(const std::vector<cv::Point2f> &pts1,
                               const std::vector<cv::Point2f> &pts2)
@@ -192,7 +203,7 @@ void Orb_Basic::Triangulation(const std::vector<cv::Point2f> &pts1,
 
     // Check baseline distance - need sufficient camera motion for good triangulation
     double baseline = (curr_position - prev_position).norm();
-    if (baseline < 0.2)  // Minimum 20cm baseline for stable triangulation
+    if (baseline < 0.5)  // Minimum 20cm baseline for stable triangulation
     {
         RCLCPP_DEBUG(consumer_->get_logger(), "Baseline too small: %.3f m. Skipping triangulation.", baseline);
         return;
@@ -210,10 +221,9 @@ void Orb_Basic::Triangulation(const std::vector<cv::Point2f> &pts1,
     T_w_c2_ros.block<3,3>(0,0) = curr_orientation.toRotationMatrix();
     T_w_c2_ros.block<3,1>(0,3) = curr_position;
 
-    // Transform from ROS camera frame (X-forward, Y-left, Z-up) 
+    // Transform from ROS camera frame (Y-forward, X-right, Z-up) 
     // to OpenCV optical frame (Z-forward, X-right, Y-down)
-    // Note: We use a reflection here (Right -> Left) to fix the "opposite Y" issue
-    // This implies a coordinate system mismatch or mirrored image/world
+    // -90 deg x-rotation
     Eigen::Matrix4d T_ros_opt = Eigen::Matrix4d::Identity();
     T_ros_opt.block<3,3>(0,0) << 1, 0, 0,
                                  0, 0, 1,
@@ -292,7 +302,7 @@ void Orb_Basic::Triangulation(const std::vector<cv::Point2f> &pts1,
         // Filter out points with low parallax (rays are nearly parallel)
         // cos(0.5 degrees) ~= 0.99996. 
         // If cosParallax is too close to 1, triangulation is unstable.
-        if (cosParallax > 0.9998) 
+        if (cosParallax > 0.99996) 
             continue;
 
         // Check depth in Camera 1
@@ -320,11 +330,11 @@ void Orb_Basic::Triangulation(const std::vector<cv::Point2f> &pts1,
 
         // Threshold: 5.991 is Chi-square 95% for 2 DOF (standard in ORB-SLAM)
         // We can be a bit looser here, e.g., 4 pixels squared error
-        if (err1 > 10.0 || err2 > 10.0) 
+        if (err1 > 5.991 || err2 > 5.991) 
             continue;
 
-        // Filter out points that are too far (e.g. > 50m for indoor/local)
-        if (x3D.norm() > 50.0)
+        // Filter out points that are too far from the camera (e.g. > 50m)
+        if ((x3D - curr_position).norm() > 50.0)
             continue;
 
         points_3d.push_back(cv::Point3f(x3D(0), x3D(1), x3D(2)));

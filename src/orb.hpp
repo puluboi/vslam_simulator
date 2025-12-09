@@ -10,6 +10,7 @@ public:
 
 private:
     std::pair<std::vector<cv::Point2f>, std::vector<cv::Point2f>> featureExtraction();
+    void preProcess();
     void poseEstimation();
     void Triangulation(const std::vector<cv::Point2f> &pts1,
                        const std::vector<cv::Point2f> &pts2);
@@ -19,6 +20,7 @@ private:
 
     cv::Ptr<cv::ORB> orb;
     cv::Ptr<cv::BFMatcher> bf;
+    cv::Ptr<cv::CLAHE> clahe;
 
     cv::Mat curr_descriptors;
     cv::Mat prev_descriptors;

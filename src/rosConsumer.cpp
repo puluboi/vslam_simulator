@@ -20,6 +20,10 @@ rosConsumer::rosConsumer() : Node("ros_consumer_node") {
     // Create publisher for 3D points
     points_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
         "/orb_points_3d", 10);
+
+    image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
+        "/tracking_viz", 10);
+    
     
     RCLCPP_INFO(this->get_logger(), "ROS Consumer node initialized");
 }
@@ -39,6 +43,16 @@ void rosConsumer::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedP
     latest_camera_info_ = msg;
     RCLCPP_DEBUG(this->get_logger(), "Received camera info: fx=%.2f, fy=%.2f, cx=%.2f, cy=%.2f",
                  msg->k[0], msg->k[4], msg->k[2], msg->k[5]);
+}
+
+void rosConsumer::publishTrackingViz(const cv::Mat frame)
+{
+    auto cv_image = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame);
+    sensor_msgs::msg::Image image_msg = *(cv_image.toImageMsg());
+
+    image_pub_->publish(image_msg);
+
+
 }
 
 sensor_msgs::msg::Image::SharedPtr rosConsumer::getLatestImage() const {

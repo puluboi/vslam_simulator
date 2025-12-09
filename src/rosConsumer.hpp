@@ -7,6 +7,7 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/core/types.hpp>
 #include <vector>
 
@@ -28,6 +29,7 @@ public:
 
         // Publish 3D points as PointCloud2
     void publishPoints3D(const std::vector<cv::Point3f>& points_3d, const std::string& frame_id = "map");
+    void publishTrackingViz(const cv::Mat frame);
 
 
 private:
@@ -43,6 +45,8 @@ private:
 
     // Publishers
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr points_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
+    
 
     // Latest data storage
     sensor_msgs::msg::Image::SharedPtr latest_image_;
