@@ -7,7 +7,7 @@ This project implements a Visual SLAM system split across two branches:
 The two components communicate via **ROS2**.
 
 ## Goal
-The simulation will provide realistic IMU and camera data, which the ORB-SLAM system will// filepath: /home/puluboi/Documents/projects/orb_basic/README.md
+The simulation will provide realistic IMU and camera data, which the ORB-SLAM system will use for pose estimation & point cloud triangulation.
 # VSLAM Simulator
 
 This project implements a Visual SLAM system split across two branches:

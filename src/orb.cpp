@@ -37,6 +37,10 @@ Orb_Basic::Orb_Basic(const int feature_count)
             K = (cv::Mat_<double>(3, 3) << intrinsics.fx, 0, intrinsics.cx,
                  0, intrinsics.fy, intrinsics.cy,
                  0, 0, 1);
+            // std::cout << "Camera Intrinsics:\n";
+            // std::cout << "fx: " << intrinsics.fx << ", fy: " << intrinsics.fy
+            //           << ", cx: " << intrinsics.cx << ", cy: " << intrinsics.cy << std::endl;
+            // std::cout << "K:\n" << K << std::endl;
         }
 
         // Get latest image from ROS
@@ -48,11 +52,13 @@ Orb_Basic::Orb_Basic(const int feature_count)
             try
             {
                 // Convert ROS image message to OpenCV Mat
-
                 cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(ros_image, sensor_msgs::image_encodings::BGR8);
                 image = cv_ptr->image;
+
+                // Get pose synchronized to image timestamp
+                rclcpp::Time image_stamp = ros_image->header.stamp;
+                auto ros_pose = consumer_->getPoseAtTime(image_stamp);
                 // Update current position from ROS pose
-                auto ros_pose = consumer_->getLatestPose();
                 if (ros_pose)
                 {
                     curr_position = Eigen::Vector3d(
@@ -76,13 +82,28 @@ Orb_Basic::Orb_Basic(const int feature_count)
                 }
                 preProcess();
                 auto pts = featureExtraction();
+                auto imu = consumer_->getLatestImu();
+                if (imu)
+                {
+                    std::cout << "acc=("
+                              << imu->linear_acceleration.x << ", "
+                              << imu->linear_acceleration.y << ", "
+                              << imu->linear_acceleration.z << ") gyro=("
+                              << imu->angular_velocity.x << ", "
+                              << imu->angular_velocity.y << ", "
+                              << imu->angular_velocity.z << ")\n";
+                }
+                else
+                {
+                    std::cout << "No IMU data yet\n";
+                }
                 Triangulation(pts.first, pts.second);
                 // Publish 3D points to ROS2 in world frame
                 if (!points_3d.empty())
                 {
                     consumer_->publishPoints3D(points_3d, "world");
-                    RCLCPP_INFO(consumer_->get_logger(), "Triangulated %zu 3D points. Example: (%.2f, %.2f, %.2f)",
-                                points_3d.size(), points_3d[3].x, points_3d[3].y, points_3d[3].z);
+                    // RCLCPP_INFO(consumer_->get_logger(), "Triangulated %zu 3D points. Example: (%.2f, %.2f, %.2f)",
+                    //             points_3d.size(), points_3d[3].x, points_3d[3].y, points_3d[3].z);
                 }
             }
             catch (cv_bridge::Exception &e)
@@ -98,21 +119,7 @@ Orb_Basic::Orb_Basic(const int feature_count)
 
 std::pair<std::vector<cv::Point2f>, std::vector<cv::Point2f>> Orb_Basic::featureExtraction()
 {
-    // Get and update current pose from ROS before processing
-    auto ros_pose = consumer_->getLatestPose();
-    if (ros_pose)
-    {
-        curr_position = Eigen::Vector3d(
-            ros_pose->pose.position.x,
-            ros_pose->pose.position.y,
-            ros_pose->pose.position.z);
-        curr_orientation = Eigen::Quaterniond(
-            ros_pose->pose.orientation.w,
-            ros_pose->pose.orientation.x,
-            ros_pose->pose.orientation.y,
-            ros_pose->pose.orientation.z);
-    }
-
+    // Pose is already synchronized in main loop - no need to fetch again
     orb->detectAndCompute(image, cv::noArray(), curr_keypoints, curr_descriptors);
 
     cv::Mat output;
@@ -197,6 +204,14 @@ void Orb_Basic::preProcess()
     clahe->apply(image, image);
 }
 
+void Orb_Basic::poseEstimation(const std::vector<cv::Point2f> &pts1, const std::vector<cv::Point2f> &pts2)
+{
+    cv::Mat F = cv::findFundamentalMat(pts1, pts2, cv::FM_RANSAC, 10.0, 0.999);
+    cv::Mat E = K.t() * F * K;
+    cv::Mat R, t, mask;
+    int inliers_pose = cv::recoverPose(E, pts1, pts2, K, R, t, mask);
+}
+
 void Orb_Basic::Triangulation(const std::vector<cv::Point2f> &pts1,
                               const std::vector<cv::Point2f> &pts2)
 {
@@ -214,7 +229,7 @@ void Orb_Basic::Triangulation(const std::vector<cv::Point2f> &pts1,
 
     // Check baseline distance - need sufficient camera motion for good triangulation
     double baseline = (curr_position - prev_position).norm();
-    if (baseline < 0.5) // Minimum 20cm baseline for stable triangulation
+    if (baseline < 0.2) // Minimum 20cm baseline for stable triangulation
     {
         RCLCPP_DEBUG(consumer_->get_logger(), "Baseline too small: %.3f m. Skipping triangulation.", baseline);
         return;

@@ -11,9 +11,11 @@ public:
 private:
     std::pair<std::vector<cv::Point2f>, std::vector<cv::Point2f>> featureExtraction();
     void preProcess();
-    void poseEstimation();
+    void poseEstimation(const std::vector<cv::Point2f> &pts1,
+                       const std::vector<cv::Point2f> &pts2);
     void Triangulation(const std::vector<cv::Point2f> &pts1,
                        const std::vector<cv::Point2f> &pts2);
+    
 
     cv::Mat image;
     std::string frame_id;

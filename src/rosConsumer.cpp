@@ -16,6 +16,11 @@ rosConsumer::rosConsumer() : Node("ros_consumer_node") {
     camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
         "/camera/camera_info", 10,
         std::bind(&rosConsumer::cameraInfoCallback, this, std::placeholders::_1));
+
+    // Subscribe to IMU topic
+    imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
+        "/imu/data", 50,
+        std::bind(&rosConsumer::imuCallback, this, std::placeholders::_1));
     
     // Create publisher for 3D points
     points_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
@@ -33,7 +38,24 @@ void rosConsumer::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     RCLCPP_DEBUG(this->get_logger(), "Received image: %dx%d", msg->width, msg->height);
 }
 
+void rosConsumer::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(imu_mutex_);
+    latest_imu_ = msg;
+    RCLCPP_DEBUG(this->get_logger(), "Received IMU: accel=(%.3f, %.3f, %.3f)",
+                 msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
+}
+
 void rosConsumer::poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(pose_mutex_);
+    
+    // Add to buffer for timestamp synchronization
+    pose_buffer_.push_back(msg);
+    
+    // Keep buffer bounded
+    while (pose_buffer_.size() > MAX_POSE_BUFFER_SIZE) {
+        pose_buffer_.pop_front();
+    }
+    
     latest_pose_ = msg;
     RCLCPP_DEBUG(this->get_logger(), "Received pose at [%.2f, %.2f, %.2f]", 
                  msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
@@ -63,8 +85,82 @@ geometry_msgs::msg::PoseStamped::SharedPtr rosConsumer::getLatestPose() const {
     return latest_pose_;
 }
 
+geometry_msgs::msg::PoseStamped::SharedPtr rosConsumer::getPoseAtTime(const rclcpp::Time& stamp) const {
+    std::lock_guard<std::mutex> lock(pose_mutex_);
+    
+    if (pose_buffer_.empty()) {
+        return nullptr;
+    }
+    
+    // Find the two poses that bracket the requested timestamp
+    geometry_msgs::msg::PoseStamped::SharedPtr before = nullptr;
+    geometry_msgs::msg::PoseStamped::SharedPtr after = nullptr;
+    
+    for (const auto& pose : pose_buffer_) {
+        rclcpp::Time pose_time(pose->header.stamp);
+        
+        if (pose_time <= stamp) {
+            before = pose;
+        } else {
+            after = pose;
+            break;
+        }
+    }
+    
+    // If we only have one side, return the closest available
+    if (!before && !after) {
+        return nullptr;
+    }
+    if (!before) {
+        return after;
+    }
+    if (!after) {
+        return before;
+    }
+    
+    // Linear interpolation between the two bracketing poses
+    rclcpp::Time t0(before->header.stamp);
+    rclcpp::Time t1(after->header.stamp);
+    
+    double dt = (t1 - t0).seconds();
+    if (dt < 1e-9) {
+        return before;  // Timestamps are identical, avoid division by zero
+    }
+    
+    double alpha = (stamp - t0).seconds() / dt;
+    alpha = std::clamp(alpha, 0.0, 1.0);
+    
+    auto interpolated = std::make_shared<geometry_msgs::msg::PoseStamped>();
+    interpolated->header.stamp = stamp;
+    interpolated->header.frame_id = before->header.frame_id;
+    
+    // Interpolate position (linear)
+    interpolated->pose.position.x = (1.0 - alpha) * before->pose.position.x + alpha * after->pose.position.x;
+    interpolated->pose.position.y = (1.0 - alpha) * before->pose.position.y + alpha * after->pose.position.y;
+    interpolated->pose.position.z = (1.0 - alpha) * before->pose.position.z + alpha * after->pose.position.z;
+    
+    // SLERP for quaternion orientation
+    Eigen::Quaterniond q0(before->pose.orientation.w, before->pose.orientation.x,
+                           before->pose.orientation.y, before->pose.orientation.z);
+    Eigen::Quaterniond q1(after->pose.orientation.w, after->pose.orientation.x,
+                           after->pose.orientation.y, after->pose.orientation.z);
+    Eigen::Quaterniond q_interp = q0.slerp(alpha, q1);
+    
+    interpolated->pose.orientation.w = q_interp.w();
+    interpolated->pose.orientation.x = q_interp.x();
+    interpolated->pose.orientation.y = q_interp.y();
+    interpolated->pose.orientation.z = q_interp.z();
+    
+    return interpolated;
+}
+
 sensor_msgs::msg::CameraInfo::SharedPtr rosConsumer::getLatestCameraInfo() const {
     return latest_camera_info_;
+}
+
+sensor_msgs::msg::Imu::SharedPtr rosConsumer::getLatestImu() const {
+    std::lock_guard<std::mutex> lock(imu_mutex_);
+    return latest_imu_;
 }
 
 rosConsumer::IntrinsicParams rosConsumer::getIntrinsicParams() const {

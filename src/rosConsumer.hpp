@@ -10,6 +10,9 @@
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/core/types.hpp>
 #include <vector>
+#include <deque>
+#include <mutex>
+#include <Eigen/Geometry>
 
 class rosConsumer : public rclcpp::Node
 {
@@ -26,6 +29,11 @@ public:
     sensor_msgs::msg::Image::SharedPtr getLatestImage() const;
     geometry_msgs::msg::PoseStamped::SharedPtr getLatestPose() const;
     sensor_msgs::msg::CameraInfo::SharedPtr getLatestCameraInfo() const;
+    // IMU getter
+    sensor_msgs::msg::Imu::SharedPtr getLatestImu() const;
+    
+    // Get pose interpolated at a specific timestamp (for image-pose synchronization)
+    geometry_msgs::msg::PoseStamped::SharedPtr getPoseAtTime(const rclcpp::Time& stamp) const;
 
         // Publish 3D points as PointCloud2
     void publishPoints3D(const std::vector<cv::Point3f>& points_3d, const std::string& frame_id = "map");
@@ -37,11 +45,14 @@ private:
     void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg);
     void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
     void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
+    void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg);
 
     // Subscribers
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+   
 
     // Publishers
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr points_pub_;
@@ -52,4 +63,11 @@ private:
     sensor_msgs::msg::Image::SharedPtr latest_image_;
     geometry_msgs::msg::PoseStamped::SharedPtr latest_pose_;
     sensor_msgs::msg::CameraInfo::SharedPtr latest_camera_info_;
+    sensor_msgs::msg::Imu::SharedPtr latest_imu_;
+    
+    // Pose buffer for timestamp synchronization
+    std::deque<geometry_msgs::msg::PoseStamped::SharedPtr> pose_buffer_;
+    mutable std::mutex pose_mutex_;
+    mutable std::mutex imu_mutex_;
+    static constexpr size_t MAX_POSE_BUFFER_SIZE = 100;
 };
