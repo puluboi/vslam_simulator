@@ -22,6 +22,7 @@ The simulation will provide realistic IMU and camera data, which the ORB-SLAM sy
 
 
 ## Timelapse:
+The video is from an earlier version: the point cloud is quite noisy compared to the "Full Scan" video.
 https://github.com/user-attachments/assets/4c43edb4-3150-4ff5-9d46-410478112b16
 ## Full Scan
 https://github.com/user-attachments/assets/b53b01e1-7a70-497d-b8d4-b224f227b976
